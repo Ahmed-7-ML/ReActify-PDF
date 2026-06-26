@@ -1,4 +1,4 @@
-# Chat with PDF - Agentic RAG Core 🚀
+# ReActify PDF - Agentic RAG Core 🚀
 
 An enterprise-grade, agentic PDF chatting application utilizing a **ReAct (Reasoning and Acting) Agent** framework. It ingestion-pipelines documents into a local SQLite-backed Qdrant vector database, calculates embeddings using the Gemini API, and allows users to query documents dynamically with high fidelity in both English and Arabic.
 
