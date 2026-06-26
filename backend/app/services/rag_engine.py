@@ -10,9 +10,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # 3. Turn each chunk into embedding
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-# 4. Store all Embeddings of Chunks into Qdrant Vector Store
-from langchain_qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient
+# 4. Store all Embeddings of Chunks into Supabase Vector Store
+from langchain_community.vectorstores import SupabaseVectorStore
+from supabase.client import create_client
 
 class Rag_Engine:
     '''
@@ -51,43 +51,30 @@ class Rag_Engine:
         return self.splitter.split_documents( documents )
     
     def _store_in_vectorstore(self, chunks):
-        """Initializes connection to Qdrant and upserts document vectors."""
-        # 1. Clean up any existing collection to avoid mixing context of different PDFs
-        if 'localhost' in settings.QDRANT_URL:
-            client = QdrantClient(path='local_qdrant_db')
-        else:
-            client = QdrantClient(url=settings.QDRANT_URL)
+        """Initializes connection to Supabase and upserts document vectors."""
+        # 1. Clean up any existing documents to avoid mixing context of different PDFs
+        client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
         try:
-            client.delete_collection(collection_name=settings.QDRANT_COLLECTION_NAME)
-            print(f"[CLEANUP] Cleaned up existing Qdrant collection: {settings.QDRANT_COLLECTION_NAME}")
+            # Delete all documents to mimic fresh start (similar to deleting Qdrant collection)
+            client.table("documents").delete().neq("id", 0).execute()
+            print("[CLEANUP] Cleaned up existing documents in Supabase.")
         except Exception as e:
-            print(f"Info: Could not delete collection (likely does not exist yet): {e}")
+            print(f"Info: Could not clean up existing documents: {e}")
 
-        # 2. Build and Upsert the Vector Store using LangChain wrapper on the same active client
+        # 2. Build and Upsert the Vector Store using LangChain wrapper
         try:
-            # Ensure the collection exists on the active client connection
-            try:
-                client.get_collection(collection_name=settings.QDRANT_COLLECTION_NAME)
-            except Exception:
-                from qdrant_client.http import models
-                client.create_collection(
-                    collection_name=settings.QDRANT_COLLECTION_NAME,
-                    vectors_config=models.VectorParams(
-                        size=3072,
-                        distance=models.Distance.COSINE
-                    )
-                )
-            
-            vectorstore = QdrantVectorStore(
+            vectorstore = SupabaseVectorStore(
                 client=client,
-                collection_name=settings.QDRANT_COLLECTION_NAME,
-                embedding=self.embedding_model
+                embedding=self.embedding_model,
+                table_name="documents",
+                query_name="match_documents"
             )
             vectorstore.add_documents(chunks)
-            print(f"[INGEST] Successfully indexed {len(chunks)} chunks into Qdrant collection.")
-        finally:
-            client.close()
+            print(f"[INGEST] Successfully indexed {len(chunks)} chunks into Supabase.")
+        except Exception as e:
+            print(f"[ERROR] Failed to add documents to Supabase: {e}")
+            raise e
 
     def execute_engine(self) -> bool:
         '''

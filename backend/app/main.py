@@ -25,8 +25,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-agent_executer = None
-active_qdrant_client = None
+agent_executor = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -37,74 +36,60 @@ def root():
     return {
         'status': 'online',
         'project': settings.LANGSMITH_PROJECT,
-        'agent_ready': agent_executer is not None,
+        'agent_ready': agent_executor is not None,
         'engineer': 'Ahmed Akram Amer',
-        'qdrant_url': settings.QDRANT_URL,
-        'qdrant_collection': settings.QDRANT_COLLECTION_NAME
+        'supabase_url': settings.SUPABASE_URL
     }
+
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
-    '''
-        Endpoint to receive PDF, trigger chunking, and spin up the Agent Executor.
-    '''
-    global agent_executer, active_qdrant_client
-    
-    if active_qdrant_client is not None:
-        try:
-            print("Closing previous agent's Qdrant client to release database lock...")
-            active_qdrant_client.close()
-        except Exception as e:
-            print(f"Error closing previous Qdrant client: {e}")
-        active_qdrant_client = None
-    agent_executer = None
-    
-    # Force garbage collection to release any lingering sqlite file locks immediately
-    gc.collect()
+    global agent_executor
     
     if not file.filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Invalid file type. Only PDF documents are allowed.")
+        raise HTTPException(status_code=400, detail="Invalid file type.")
     
     os.makedirs("./pdfs", exist_ok=True)
     file_path = f"./pdfs/{file.filename}"
     
     try:
-        # Save the file temporarily to the hard disk so that the PyPDFLoader can read it.
-        with open(file_path, 'wb') as buffer:
+        with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
-        print(f"[INGEST] File saved to {file_path}. Starting RAG Engine...")
-        
-        # 1. Ingestion
+            
+        # 1. Ingestion (clears Supabase and indexes new document)
         rag_engine = Rag_Engine(file_path=file_path, chunk_size=1000, chunk_overlap=200)
         rag_engine.execute_engine()
         
-        # 2. Run the Agent
+        # 2. Reset the executor and memory
+        agent_executor = None
+        
         agent_system = AgentCore()
-        agent_executer = agent_system.execute_agent()
-        active_qdrant_client = agent_system.qdrant_client
+        agent_executor = agent_system.execute_agent()
         
         return {
             "message": f"Successfully ingested '{file.filename}'",
-            "status": "Agent Core is now fully armed and ready for chat!"
+            "status": "Agent Core handles completely fresh document context now!"
         }
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+
 
 @app.post("/api/chat")
 async def chat_with_agent(request: ChatRequest):
     '''
         Endpoint to converse with the armed ReAct Agent.
     '''
+    global agent_executor
     # Ensure the user uploads a file first before chatting
-    if agent_executer is None:
+    if agent_executor is None:
         raise HTTPException(
             status_code=400, 
             detail="No document has been ingested yet. Please upload a PDF file first."
     )
     
     try:
-        response = agent_executer.invoke({
+        response = agent_executor.invoke({
             'input': request.message
         })
         

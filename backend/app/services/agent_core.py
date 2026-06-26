@@ -21,8 +21,8 @@ from app.services.agent_prompt import react_template
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 # Vector Store Wrapper
-from langchain_qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient
+from langchain_community.vectorstores import SupabaseVectorStore
+from supabase.client import create_client
 
 # Tool Decorator
 from langchain.tools import tool
@@ -59,18 +59,14 @@ class AgentCore:
         self.qdrant_client = None
     
     def _get_vector_store(self):
-        '''Connects to the existing Qdrant collection (In-Memory for development).'''
-        if "localhost" in settings.QDRANT_URL:
-            # We point to local_qdrant_db to bind to the same running instance context during fast testing
-            client = QdrantClient(path="local_qdrant_db")
-        else:
-            client = QdrantClient(url=settings.QDRANT_URL)
-            
-        self.qdrant_client = client
-        return QdrantVectorStore(
+        '''Connects to the existing Supabase vector store.'''
+        client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        self.supabase_client = client
+        return SupabaseVectorStore(
             client=client,
-            collection_name=settings.QDRANT_COLLECTION_NAME,
-            embedding=self.embedding_model
+            embedding=self.embedding_model,
+            table_name="documents",
+            query_name="match_documents"
         )
     
     def execute_agent(self):

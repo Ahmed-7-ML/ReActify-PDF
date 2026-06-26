@@ -13,8 +13,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Pydantic will automatically look for these variables in uppercase
     GEMINI_API_KEY: str
-    QDRANT_URL: str
-    QDRANT_COLLECTION_NAME: str
+    QDRANT_URL: str = ""
+    QDRANT_COLLECTION_NAME: str = ""
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
     LANGSMITH_API_KEY: str
     LANGSMITH_PROJECT: str
     LANGSMITH_TRACING: bool
