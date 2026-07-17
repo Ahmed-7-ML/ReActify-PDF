@@ -8,7 +8,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # 3. Turn each chunk into embedding
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # 4. Store all Embeddings of Chunks into Supabase Vector Store
 from langchain_community.vectorstores import SupabaseVectorStore
@@ -20,7 +20,7 @@ class Rag_Engine:
         - Parses a PDF File
         - Splits it into semantic chunks
         - Generate Embeddings
-        - Indexes them into Qdrant
+        - Indexes them into Supabase
     '''
     
     def __init__(self, file_path: str, chunk_size: int = 1000, chunk_overlap: int = 200):
@@ -33,10 +33,9 @@ class Rag_Engine:
             chunk_overlap = chunk_overlap,
             length_function = len
         )
-        # Initialize Google's Embedding Model
-        self.embedding_model = GoogleGenerativeAIEmbeddings(
-            model = 'gemini-embedding-2-preview',
-            google_api_key = settings.GEMINI_API_KEY
+        # Initialize Hugging Face Embedding Model (local, free)
+        self.embedding_model = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
     
     # -----------------------------------------
@@ -56,7 +55,7 @@ class Rag_Engine:
         client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
         try:
-            # Delete all documents to mimic fresh start (similar to deleting Qdrant collection)
+            # Delete all documents to mimic fresh start (similar to truncating the table)
             client.table("documents").delete().neq("id", 0).execute()
             print("[CLEANUP] Cleaned up existing documents in Supabase.")
         except Exception as e:
@@ -88,7 +87,7 @@ class Rag_Engine:
             print(f"[INGEST] Step 2: Splitting into chunks (Total Pages: {len(docs)})...")
             chunks = self._split_into_chunks(docs)
             
-            print(f"[INGEST] Step 3: Generating Embeddings & Ingesting into Qdrant ({len(chunks)} chunks)...")
+            print(f"[INGEST] Step 3: Generating Embeddings & Ingesting into Supabase ({len(chunks)} chunks)...")
             self._store_in_vectorstore(chunks)
             
             print("[SUCCESS] Ingestion Pipeline Finished Successfully!")

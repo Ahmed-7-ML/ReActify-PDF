@@ -1,32 +1,32 @@
-# React + TypeScript + Vite
+# Chat with PDF - React Frontend 🎨
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A beautiful, responsive React application built with **Vite**, **TypeScript**, and **TailwindCSS** featuring a premium Glassmorphic Dark Theme.
 
-Currently, two official plugins are available:
+## ⚡ Layout & Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+* **Glassmorphic Dark UI**: Custom-tailored dark color palette (`bg-zinc-950` and `bg-zinc-900`) with smooth gradient effects, micro-animations, and hover states.
+* **Global App State (`src/App.tsx`)**: Coordinates backend status checks, document upload progression (smoothly simulated up to 100%), and agent conversation history.
+* **Sidebar Component (`src/components/Sidebar.tsx`)**:
+  - Configures backend URL (automatically saved in `localStorage`).
+  - Implements a Drag & Drop area for PDF files.
+  - Displays connection indicators and system status metadata.
+* **Chat Interface (`src/components/ChatInterface.tsx`)**:
+  - Dynamically renders Markdown outputs (headers, bullet lists, inline code blocks, bold text, links).
+  - Automatically scrolls to the newest message.
+  - Provides a skeletons loader when the agent is formulating responses.
 
-## React Compiler
+## 🚀 Setup & Run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+### 1. Installation
+Install dependencies:
+```bash
+npm install
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### 2. Execution
+Start the Vite development server:
+```bash
+npm run dev
+```
+
+Open the default URL in your browser: `http://localhost:5173/` and input the backend URL to start chatting.

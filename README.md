@@ -1,32 +1,121 @@
-# ReActify PDF - Agentic RAG Core 🚀
+# Chat with PDF - Agentic RAG Core 🚀
 
-An enterprise-grade, agentic PDF chatting application utilizing a **ReAct (Reasoning and Acting) Agent** framework. It ingests PDF documents into a **Supabase Vector Database** (PostgreSQL with `pgvector`), calculates embeddings using the Gemini API, and allows users to query documents dynamically with high fidelity in both English and Arabic.
+An enterprise-grade, lightweight, and high-performance PDF chatting application powered by an **Agentic Retrieval-Augmented Generation (RAG) Core**. It ingests PDF documents, processes and generates vector embeddings locally using the Hugging Face `sentence-transformers/all-MiniLM-L6-v2` model, indexes them in a cloud-based **Supabase Vector Database** (PostgreSQL with `pgvector` extension), and allows users to query documents dynamically using Groq's fast inference engine with the `qwen/qwen3-32b` model.
 
 ---
 
 ## 🏛️ System Architecture
 
-The following diagram illustrates the workflow of the ingestion and chat systems:
-
 ![System Architecture](docs/images/system_architecture.png)
+
+This application consists of two main workflows: **Document Ingestion** and **Agentic Chatting**.
+
+### 1. Document Ingestion Pipeline
+The diagram below details the flow of data from local PDF uploads to vector storage indexing:
+
+```mermaid
+flowchart TD
+    A[PDF File Upload] -->|React Frontend Drag & Drop| B[FastAPI Endpoint: /api/upload]
+    B -->|Save File| C[Local Storage: ./pdfs/]
+    B -->|Initialize| D[Rag_Engine Pipeline]
+    D -->|Load| E[PyPDFLoader reads PDF]
+    E -->|Split| F[RecursiveCharacterTextSplitter\n(Chunk Size: 1000, Overlap: 200)]
+    F -->|Local Embeddings| G[sentence-transformers/all-MiniLM-L6-v2\n(384 dimensions)]
+    G -->|Purge Old DB Rows| H[Delete old records from Supabase documents table]
+    H -->|Index Chunks| I[Supabase Vector DB\n(documents table via pgvector)]
+    I -->|Recreate Executor| J[Reset Agent Memory & Recreate SimpleLLMExecutor]
+```
+
+### 2. Chat / Inference Flow
+The diagram below shows the sequence of actions when a user asks a question about the document:
+
+![Chat/Inference Flow](docs/images/chat_inference_flow.png)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as React Frontend (Vite)
+    participant BE as FastAPI Backend
+    participant DB as Supabase DB (pgvector)
+    participant Groq as Groq API (Qwen-3-32B)
+
+    User->>FE: Enter message / question
+    FE->>BE: POST /api/chat { message: "..." }
+    BE->>BE: Generate query embedding using sentence-transformers
+    BE->>DB: Query match_documents RPC (similarity search, k=4)
+    DB-->>BE: Return top 4 matching document chunks with page metadata
+    BE->>BE: Format retrieved chunks into System Context
+    BE->>BE: Assemble prompt: System + Context + Memory (Last 10 turns) + User Input
+    BE->>Groq: Request Chat Completion (Streaming)
+    Groq-->>BE: Stream response chunks
+    BE-->>FE: Stream / return final response block
+    FE->>User: Render styled Markdown output
+```
 
 ---
 
-## 🛠️ Tech Stack
-* **Frontend**: React, Vite, CSS (Glassmorphic Dark Palette)
-* **Backend**: FastAPI, Python, Poetry (Dependency Management)
-* **Vector DB**: Supabase (PostgreSQL with `pgvector` extension)
-* **AI Model**: Google Gemini API (`gemini-1.5-pro` for Agent, `gemini-embedding-2-preview` for Embeddings)
-* **Agent Framework**: LangChain (ReAct Agent Core with custom tool retrieval)
-* **Tunnelling**: ngrok (exposing local backend to frontend securely)
+## 📂 Project Directory Structure
+
+```
+Chat with PDF/
+├── backend/                  # FastAPI Python Backend
+│   ├── app/                  # Application Core
+│   │   ├── services/         # Business Logic & AI Services
+│   │   │   ├── agent_core.py # Core LLM Executor & memory management
+│   │   │   ├── agent_prompt.py# Reference ReAct agent prompt templates
+│   │   │   └── rag_engine.py # Document parsing, chunking, and indexing
+│   │   ├── config.py         # App configurations via Pydantic Settings
+│   │   └── main.py           # FastAPI entrypoint and API routers
+│   ├── pdfs/                 # Directory holding uploaded PDFs
+│   ├── tests/                # Local testing and verification scripts
+│   │   ├── test_config.py    # Test environment configuration
+│   │   ├── test_full_agent.py# End-to-end local RAG test
+│   │   └── test_rag_engine.py# Document ingestion & indexing test
+│   ├── .env                  # Backend environment credentials (ignored)
+│   ├── .env.example          # Sample environment variables
+│   ├── pyproject.toml        # Poetry package dependencies
+│   └── poetry.lock           # Poetry lock file
+│
+├── frontend/                 # React TypeScript Frontend (Vite)
+│   ├── src/                  # Source files
+│   │   ├── components/       # Interface components
+│   │   │   ├── ChatInterface.tsx # Chat interface, markdown renderer, and skeletons
+│   │   │   └── Sidebar.tsx   # Sidebar for connection settings, drag & drop uploads, and health indicators
+│   │   ├── assets/           # Frontend assets
+│   │   ├── App.tsx           # Global state manager and API coordination
+│   │   ├── App.css           # Custom styling rules for glassmorphism layout
+│   │   ├── main.tsx          # Application entrypoint
+│   │   └── types.ts          # TypeScript type declarations
+│   ├── tailwind.config.js    # Tailwind styling configurations
+│   ├── package.json          # Node dependencies
+│   └── README.md             # Frontend specific guidelines
+│
+├── docs/                     # Static diagrams and media
+│   └── images/
+│       └── system_architecture.png
+└── README.md                 # Project root documentation (this file)
+```
+
+---
+
+## 🛠️ Tech Stack & Technical Decisions
+
+* **Frontend**: React, Vite, TypeScript, TailwindCSS, Lucide Icons. Designed with a gorgeous, responsive **Glassmorphic Dark Theme**.
+* **Backend**: FastAPI (Python), asynchronous routers, and automatic OpenAPI schema generation.
+* **Vector DB**: Supabase (PostgreSQL with `pgvector` extension). **Decision**: Bypasses local SQLite database locking issues (common in containerized/concurrent operations) by offloading vector indexing and retrieval to a scalable, cloud-based PostgreSQL database.
+* **Embeddings**: Local Hugging Face Embeddings (`sentence-transformers/all-MiniLM-L6-v2` - 384 dimensions). **Decision**: Runs locally in the backend environment to eliminate third-party embedding API costs, external key setup, and model billing.
+* **AI Model**: Groq API using `qwen/qwen3-32b`. Provides high-quality completions, multi-turn reasoning capabilities, and sub-second latency.
+* **Memory Management**: The backend `SimpleLLMExecutor` keeps track of the last 10 messages in the chat history, ensuring fluent, context-aware, multi-turn conversation.
 
 ---
 
 ## ⚡ Key Features
-* **Supabase Integration**: Bypasses local file-locking issues by using a scalable, cloud-based PostgreSQL vector database.
-* **Dynamic Context Purging**: Clears older document vectors in Supabase on new PDF uploads to ensure context freshness.
-* **ReAct Agent Loop**: The model automatically reasons whether it needs to fetch context from the PDF database or if the query can be answered directly.
-* **High Performance**: Streaming, chunking, and indexing completed in seconds.
+* **Zero-Cost Embeddings**: Leverages local Hugging Face embedding pipelines running entirely on the backend server.
+* **Dynamic Context Purging**: Clears older document vectors in Supabase on new PDF uploads, ensuring the agent remains focused on the active document context.
+* **Automatic Session Cache**: Persists the configured backend URL in the browser's local storage.
+* **Markdown Rendering**: Beautifully formats headers, list items, hyperlinks, code blocks, and page numbers dynamically in the chat bubble.
+* **Robust Error Handling**: Friendly warning systems alert the user if the server goes offline or if they attempt to chat before uploading a PDF.
 
 ---
 
@@ -40,22 +129,28 @@ Ensure you have the following installed:
 
 ### 2. Supabase Setup
 Before running the backend, set up your Supabase database:
-1. Go to your **Supabase Dashboard** -> **SQL Editor** and execute the following SQL script to initialize the tables and search RPC:
+1. Go to your **Supabase Dashboard** -> **SQL Editor**.
+2. Execute the following SQL script to initialize the tables, enable vector extensions, and create the similarity search RPC function:
    ```sql
    -- 1. Enable the pgvector extension
    create extension if not exists vector;
 
-   -- 2. Create the documents table
-   create table documents (
+   -- 2. Drop any old conflict functions if they exist
+   drop function if exists match_documents(vector, double precision, integer);
+   drop function if exists match_documents(vector, double precision, integer, jsonb);
+   drop function if exists match_documents(vector, integer, jsonb);
+
+   -- 3. Create the documents table (384 matches sentence-transformers/all-MiniLM-L6-v2 dimensions)
+   create table if not exists documents (
      id bigserial primary key,
      content text,
      metadata jsonb,
-     embedding vector(3072) -- 3072 matches gemini-embedding-2-preview dimensions
+     embedding vector(384) 
    );
 
-   -- 3. Create the similarity search function
+   -- 4. Create the similarity search function
    create or replace function match_documents (
-     query_embedding vector(3072),
+     query_embedding vector(384),
      match_count int default null,
      filter jsonb default '{}'
    )
@@ -81,7 +176,7 @@ Before running the backend, set up your Supabase database:
    end;
    $$;
 
-   -- 4. Disable Row Level Security (RLS) for simple backend-only access
+   -- 5. Disable Row Level Security (RLS) for simple backend-only access
    alter table documents disable row level security;
    ```
 
@@ -94,9 +189,9 @@ Before running the backend, set up your Supabase database:
    ```bash
    poetry install
    ```
-3. Create a `.env` file in the `backend/` folder and populate it (see `backend/.env.example` as a template):
+3. Create a `.env` file in the `backend/` folder and populate it (use `backend/.env.example` as a template):
    ```env
-   GEMINI_API_KEY="your_gemini_api_key_here"
+   GROQ_API_KEY="your_groq_api_key_here"
    SUPABASE_URL="https://your-project-id.supabase.co"
    SUPABASE_KEY="your-supabase-service-role-key"
    LANGSMITH_PROJECT="Chat with PDF"
@@ -109,8 +204,8 @@ Before running the backend, set up your Supabase database:
    poetry run uvicorn app.main:app --host 127.0.0.1 --port 8000
    ```
 
-### 4. ngrok Configuration
-Expose the backend port `8000` to the internet to allow the frontend to access it:
+### 4. Tunneling via ngrok (Optional/Required for external deployment)
+Expose the backend port `8000` to the internet to allow the frontend to access it securely:
 ```bash
 ngrok http 8000
 ```
@@ -130,11 +225,16 @@ Note the ngrok URL (e.g., `https://unsavingly-valvar-jami.ngrok-free.dev`).
    npm run dev
    ```
 4. Open the frontend URL in your browser (default: `http://localhost:5173/`).
-5. Set your Backend configuration URL to the ngrok URL generated in step 4.
+5. Paste your backend URL (e.g. the ngrok URL or `http://127.0.0.1:8000`) in the configuration panel on the sidebar and click **Connect**.
 
 ---
 
-## 📖 System Walkthrough
-1. **Connect**: Open the frontend web app. The connection status should display **Online** (Green).
-2. **Ingest**: Drag and drop a PDF file. The ingestion process deletes the existing vector database collection, splits the document into chunks, generates embeddings, and saves them to your Supabase PostgreSQL database.
-3. **Chat**: Once the status changes to **READY**, send messages. The ReAct agent executor will run a thinking process, call `query_knowledge_base`, and provide an accurate response citing source page numbers.
+## 📖 Walkthrough & Usage Example
+
+1. **Connect**: Enter the FastAPI Backend URL in the sidebar input box. When the indicator light turns **Online (Green)**, your frontend is securely connected to the backend.
+2. **Ingest**: Drag and drop a PDF file (e.g., `Transformers.pdf` or any scientific paper) into the dashed upload area.
+   - The backend will clear old database data, load and parse your document, split it into chunks, compute 384-dimensional embeddings locally, and upsert them to Supabase.
+   - The upload progress bar on the sidebar updates smoothly.
+3. **Chat**: Once the status updates to **READY**, the chat interface unlocks.
+   - Type a question (e.g., *"What is the self-attention mechanism?"*).
+   - The backend runs a similarity query against Supabase, injects context chunks, calls Groq's fast Qwen-3-32B inference model, and streams the styled answer back to the UI.

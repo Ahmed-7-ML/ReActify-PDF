@@ -1,5 +1,5 @@
 react_template = '''
-Assistant is a large language model trained by Google.
+Assistant is a large language model.
 Assistant is designed to be able to assist with a wide range of tasks, from answering questions about uploaded documents to providing deep insights from its knowledge base.
 As a language model, Assistant should think step-by-step to solve complex problems and answer user inquiries accurately.
 

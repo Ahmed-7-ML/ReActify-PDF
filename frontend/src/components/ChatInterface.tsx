@@ -113,7 +113,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${isServerOnline ? 'bg-indigo-500' : 'bg-zinc-650'}`} />
               </span>
             </h2>
-            <p className="text-[10px] text-zinc-500 font-medium">Equipped with ReAct framework & Qdrant database</p>
+            <p className="text-[10px] text-zinc-500 font-medium">Equipped with Groq Qwen-3-32B & Supabase Vector DB</p>
           </div>
         </div>
         {ingestedFileName && (
